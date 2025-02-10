@@ -1,0 +1,211 @@
+/* Spotify History Page */
+
+/* Page container */
+.historyPage {
+  display: flex;
+  flex-direction: column;
+  background: var(--background-base);
+  padding: 20px;
+  height: 100vh;
+  font-family: "Spotify Circular", Arial, sans-serif;
+  color: var(--text-base);
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(to right, transparent, var(--text-bright-accent), transparent, var(--text-bright-accent), transparent);
+  background-size: 200% 200%;
+  padding: 40px 20px;
+  border-radius: 8px;
+  color: var(--text-base);
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  gap: 1rem;
+  padding: 20px;
+  button {
+    outline: none;
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    color: var(--text-base);
+    &:hover {
+      color: var(--text-bright-accent);
+    }
+  }
+}
+
+/* Song list container */
+.songList {
+  margin-top: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+/* Define a grid layout for the header and each song row */
+.songListHeaderRow,
+.songRow {
+  display: grid;
+  grid-template-columns: 
+    32px                                    /* Index */
+    minmax(150px, 4fr)                      /* Title & Artist */
+    minmax(120px, 2fr)                      /* Album */
+    minmax(100px, 1fr)                      /* Date Added */
+    minmax(50px, 0.5fr)                     /* Duration */
+    60px;                                   /* Actions */
+  align-items: center;
+  padding: 10px 15px;
+}
+
+/* Header row styling */
+.songListHeaderRow {
+  font-weight: bold;
+  gap: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Individual header row styling */
+.headerIndex {
+  text-align: center;
+}
+
+.headerTitle,
+.headerAlbum,
+.headerDate,
+.headerDuration {
+  &:hover {
+    color: var(--text-bright-accent);
+  }
+}
+
+/* Song row styling */
+.songRow {
+  border-radius: 8px;
+  transition: background 0.2s ease-in-out;
+  gap: 0.5rem;
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+    .indexNumber {
+      display: none;
+    }
+    .playPauseIcon {
+      display: block;
+    }
+  }
+}
+
+/* Individual column styling */
+
+/* Index column */
+.songIndex {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+
+  .indexNumber {
+    display: inline-block;
+  }
+
+  .playPauseIcon {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+
+    svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      fill: white;
+    }
+  }
+}
+
+/* Image, Title and Artist column */
+.songImageContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.songImage {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+}
+
+.songDetails {
+  display: flex;
+  justify-self: start;
+  gap: 1rem;
+  align-items: center;
+}
+
+.songDetailsText {
+  display: flex;
+  flex-direction: column;
+}
+
+.songName {
+  font-weight: bold;
+}
+
+.songArtist {
+  font-size: 0.9rem;
+  opacity: 0.8;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-bright-accent);
+  }
+}
+
+/* Album column */
+.songAlbum {
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-bright-accent);
+  }
+}
+
+/* Date column */
+.songDate {
+  text-align: left;
+}
+
+/* Duration column */
+.songDuration {
+  text-align: left;
+}
+
+/* Delete column */
+.songActions {
+  text-align: left;
+  button {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    &:hover {
+      color: var(--text-bright-accent);
+    }
+  }
+}
+

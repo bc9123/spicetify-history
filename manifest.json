@@ -1,0 +1,10 @@
+{
+    "name": "Spicetify History",
+    "description": "A custom Spicetify app that keeps track of your listening history, allowing you to view and manage previously played songs.",
+    "preview": "preview.png",
+    "readme": "README.md",
+    "authors": [
+        { "name": "bc9123", "url": "https://github.com/bc9123" }
+    ],
+    "tags": "history"
+}
