@@ -18,6 +18,7 @@ Spicetify History is a custom Spicetify app designed to enhance your listening e
 ### 2️⃣ Download & Install Spicetify History
 1. Go to the Releases page and download the latest version.
 2. Extract the downloaded folder.
+3. Change the folder name to "spicetify-history".
 ### 3️⃣ Move to Spicetify's Custom Apps Folder
 - **On Windows:** Move the extracted folder to:  
   ```sh
