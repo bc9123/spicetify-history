@@ -7,8 +7,10 @@ Spicetify History is a custom Spicetify app designed to enhance your listening e
 ## ✨ Features
 - 📌 Persistent history — Tracks songs even after restarting Spotify.
 - 🔄 Sortable list — Sort songs by title, album, duration, or listen date.
+- 🔍 Search Bar — Quickly find songs in your history by title, artist, or album.
 - 🎵 Play & Pause — Resume or restart any song directly from the history list.
 - 🗑 Manage history — Delete individual songs or clear your entire history.
+- 📥 Import & Merge History — Load previously saved history files without overwriting current data.
 - 💾 Export history — Save your listening history as a json file for backup.
 - 🎨 Theme adaptability — Integrates seamlessly with Spicetify's themes.
 

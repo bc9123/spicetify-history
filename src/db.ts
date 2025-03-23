@@ -2,7 +2,7 @@
  * db.ts
  *
  * This module handles all IndexedDB operations for the Spicetify History extension.
- * It provides functions to open the database, save a song record, retrieve all records, delete individual records, clear the history, and export history.
+ * It provides functions to open the database, save a song record, retrieve all records, delete individual records, clear the history, export history and import history.
  *
  * The database is named "spicetifyHistoryDB" and uses version 1.
  * An object store named "history" is created with a keyPath of "uid", which is assumed to be a unique identifier for each song.
@@ -130,8 +130,8 @@ export const saveSongToDB = (db: IDBDatabase, song: Song): Promise<void> => {
  * @param db - The open IndexedDB database instance.
  * @returns A promise that resolves to an array of song records.
  */
-export const getHistoryFromDB = (db: IDBDatabase): Promise<any[]> => {
-  return new Promise<any[]>((resolve: (songs: any[]) => void, reject: (reason: string) => void) => {
+export const getHistoryFromDB = (db: IDBDatabase): Promise<Song[]> => {
+  return new Promise<Song[]>((resolve: (songs: any[]) => void, reject: (reason: string) => void) => {
     const transaction = db.transaction(["history"], "readonly");
     const objectStore = transaction.objectStore("history");
     const request = objectStore.getAll();
@@ -158,6 +158,7 @@ export const getHistoryFromDB = (db: IDBDatabase): Promise<any[]> => {
  */
 export const deleteSongFromDB = (db: IDBDatabase, uid: string): Promise<void> => {
     return new Promise<void>((resolve: () => void, reject: (reason: string) => void) => {
+        Spicetify.showNotification("Deleting song...");
         const transaction = db.transaction(["history"], "readwrite");
         const objectStore = transaction.objectStore("history");
         const request = objectStore.delete(uid);
@@ -170,7 +171,7 @@ export const deleteSongFromDB = (db: IDBDatabase, uid: string): Promise<void> =>
         }
 
         request.onsuccess = (event: Event) => {
-            console.log("Successfully deleted son.");
+            console.log("Successfully deleted song.");
             Spicetify.showNotification("Song deleted");
             resolve();
         }
@@ -186,6 +187,7 @@ export const deleteSongFromDB = (db: IDBDatabase, uid: string): Promise<void> =>
  */
 export const clearHistoryFromDB = (db: IDBDatabase): Promise<void> => {
     return new Promise<void>((resolve: () => void, reject: (reason: string) => void) => {
+        Spicetify.showNotification("Clearing history...");
         const transaction = db.transaction(["history"], "readwrite");
         const objectStore = transaction.objectStore("history");
         const request = objectStore.clear();
@@ -212,6 +214,7 @@ export const clearHistoryFromDB = (db: IDBDatabase): Promise<void> => {
  * @returns A Promise that resolves when the file download is triggered.
  */
 export const exportHistoryAsFile = async (db: IDBDatabase): Promise<void> => {
+    Spicetify.showNotification("Exporting history...");
     try {
         const history = await getHistoryFromDB(db);
         if (history.length === 0) {
@@ -234,3 +237,68 @@ export const exportHistoryAsFile = async (db: IDBDatabase): Promise<void> => {
         Spicetify.showNotification("Failed to export history");
     }
 }
+
+/**
+ * 
+ * @param db - The open IndexedDB database instance.
+ * @param file - The file containing user's history.
+ * @returns A promise that resolves when the user's history is imported.
+ */
+export const importHistoryAsFile = async (db: IDBDatabase, file: File | null): Promise<void> => {
+    Spicetify.showNotification("Importing history...");
+    try {
+      if (db && file) {
+        const jsonData = await file.text();
+        const history = JSON.parse(jsonData);
+        const transaction = db.transaction(["history"], "readwrite");
+        const objectStore = transaction.objectStore("history");
+
+        for (const song of history) {
+          if (!isValidSong(song)) {
+            throw new Error("Invalid song data in imported file");
+          }
+          objectStore.add(song);
+        }
+
+        transaction.oncomplete = () => {
+          Spicetify.showNotification("History imported");
+        };
+        transaction.onerror = (event: Event) => {
+          console.error("Error importing history:", (event.target as IDBRequest).error);
+          Spicetify.showNotification("Failed to import history");
+        };
+      }
+    } catch (error) {
+        Spicetify.showNotification("Failed to import history")
+        console.error("Error importing history:", error);
+    }
+}
+
+/**
+ * Validates whether an object conforms to the Song interface.
+ * @param song - The object to validate.
+ * @returns True if the object is a valid Song, false otherwise.
+ */
+const isValidSong = (song: any): song is Song => {
+  return (
+    typeof song.uid === "string" &&
+    typeof song.uri === "string" &&
+    typeof song.name === "string" &&
+    typeof song.duration?.milliseconds === "number" &&
+    typeof song.album?.name === "string" &&
+    typeof song.album?.uri === "string" &&
+    Array.isArray(song.artists) &&
+    song.artists.every(
+      (artist: any) =>
+        typeof artist.name === "string" && typeof artist.uri === "string"
+    ) &&
+    typeof song.listenDate === "number" &&
+    Array.isArray(song.images) &&
+    song.images.every(
+      (image: any) =>
+        typeof image.label === "string" && typeof image.url === "string"
+    ) &&
+    typeof song.metadata === "object" &&
+    song.metadata !== null
+  );
+};

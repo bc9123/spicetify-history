@@ -6,5 +6,6 @@
     "authors": [
         { "name": "bc9123", "url": "https://github.com/bc9123" }
     ],
-    "tags": "history"
+    "tags": "history",
+    "version": "1.1.0"
 }

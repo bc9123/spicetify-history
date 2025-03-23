@@ -26,17 +26,38 @@
 /* Controls */
 .controls {
   display: flex;
-  gap: 1rem;
-  padding: 20px;
-  button {
-    outline: none;
-    background-color: transparent;
-    border: none;
-    cursor: pointer;
-    font-size: 1.2rem;
-    color: var(--text-base);
-    &:hover {
-      color: var(--text-bright-accent);
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 0.5rem;
+
+  .buttonsContainer {
+    display: flex;
+    justify-content: space-evenly;
+    gap: 1rem;
+
+    button {
+      outline: none;
+      background-color: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 1.2rem;
+      color: var(--text-base);
+      &:hover {
+        color: var(--text-bright-accent);
+      }
+    }
+  }
+
+  .searchContainer {
+    text-align: center;
+
+    .searchInput {
+      width: 100%;
+      padding: 8px;
+      font-size: 16px;
+      border: none;
+      background: var(--background-base);
+      color: var(--text-base);
     }
   }
 }
@@ -195,7 +216,7 @@
   text-align: left;
 }
 
-/* Delete column */
+/* Actions column */
 .songActions {
   text-align: left;
   button {
@@ -209,3 +230,59 @@
   }
 }
 
+/* Import History Modal */
+.importHistoryModalContainer {
+  background: var(--background-base) !important;
+  color: var(--text-base) !important;
+}
+
+.importHistoryModal {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1rem !important;
+  padding: 2rem !important;
+  background: var(--background-base) !important;
+  border-radius: 8px !important;
+  color: var(--text-base) !important;
+}
+
+
+.fileInputContainer {
+  display: flex;
+  gap: 1rem;
+}
+
+.fileInput[type="file"]::file-selector-button {
+  display: none;
+}
+
+.custom-file-upload {
+  display: inline-block;
+  background: var(--text-bright-accent);
+  color: var(--background-base);
+  border-radius: 0.1rem;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  outline: none;
+  border: none;
+  text-align: center;
+  font-weight: bold;
+
+  &:hover {
+    color: var(--text-base);
+  }
+}
+
+.importButton {
+  background: var(--text-bright-accent);
+  color: var(--background-base);
+  border-radius: 1rem;
+  padding: 0.5rem 1rem;
+  outline: none;
+  border: none;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-base);
+  }
+}

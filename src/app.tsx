@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
-import styles from "./css/app.module.scss";
-import { openDB, getHistoryFromDB, deleteSongFromDB, clearHistoryFromDB, exportHistoryAsFile, Song } from "./db";
+import { openDB, getHistoryFromDB, deleteSongFromDB, clearHistoryFromDB, exportHistoryAsFile, Song, importHistoryAsFile } from "./db";
+import "./css/app.scss";
 
 const App: React.FC = () => {
   // IndexedDB instance
@@ -8,6 +8,15 @@ const App: React.FC = () => {
 
   // Songs history state
   const [songs, setSongs] = useState<Song[]>([]);
+
+  // Debounce timeout for search
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Filtered songs state
+  const [filteredSongs, setFilteredSongs] = useState<Song[]>([]);
+
+  // Search query state
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   // Sorting configuration state
   const [sortConfig, setSortConfig] = useState<{ key: string; ascending: boolean }>({ key: "date", ascending: false });
@@ -24,7 +33,9 @@ const App: React.FC = () => {
       const database = await openDB();
       const songsFromDB = await getHistoryFromDB(database);
       setDb(database);
-      sortSongs(songsFromDB, sortConfig);
+      const sortedSongs = sortSongs(songsFromDB, sortConfig);
+      setSongs(sortedSongs);
+      setFilteredSongs(sortedSongs);
     } catch (error) {
       console.error("Failed to fetch history:", error);
     }
@@ -34,9 +45,10 @@ const App: React.FC = () => {
   /**
    * Sorts the songs based on the provided sort configuration.
    * @param songs The songs history to sort.
-   * @param sortConfig The sort configuration.
+   * @param sortConfig The sort configuration, containing the key to sort by and the sorting direction.
+   * @returns A sorted array of songs.
    */
-  const sortSongs = (songs: Song[], sortConfig: { key: string; ascending: boolean }) => {
+  const sortSongs = (songs: Song[], sortConfig: { key: string; ascending: boolean }): Song[] => {
     const sortedSongs = [...songs].sort((a, b) => {
       if (sortConfig.key === "name") {
         return a.name.localeCompare(b.name);
@@ -50,15 +62,15 @@ const App: React.FC = () => {
       return 0;
     });
     if (!sortConfig.ascending) sortedSongs.reverse();
-    setSongs(sortedSongs);
+    return sortedSongs;
   };
 
-  // Fetch history on component mount
+  // Fetch history on component mount.
   useEffect(() => {
     fetchHistory();
   }, [fetchHistory]);
 
-  // Event listeners for song change and play/pause
+  // Event listeners for song change and play/pause.
   useEffect(() => {
     const handleSongChange = () => {
       fetchHistory();
@@ -77,6 +89,25 @@ const App: React.FC = () => {
     };
   }, [fetchHistory]);
 
+  // Input change for search query.
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const query = event.target.value.toLowerCase();
+    setSearchQuery(query);
+  
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+  
+  debounceTimeoutRef.current = setTimeout(() => {
+    const filtered = songs.filter(
+      (song) =>
+        song.name.toLowerCase().includes(query) ||
+        song.album?.name?.toLowerCase().includes(query) ||
+        song.artists?.some((artist) => artist.name.toLowerCase().includes(query))
+    );
+    setFilteredSongs(filtered);
+  }, 300);
+  };
 
   /**
    * Handles play/pause logic for a song.
@@ -139,6 +170,23 @@ const App: React.FC = () => {
     }
   };
 
+  /** 
+   * Handles importing the history.
+  */
+  const handleImportHistory = async (file: File) => {
+    if (db) {
+      try {
+        await importHistoryAsFile(db, file);
+        fetchHistory();
+        Spicetify.PopupModal.hide();
+      } catch (error) {
+        console.error("Failed to import history:", error);
+      }
+    } else {
+      Spicetify.showNotification("Database not ready");
+    }
+  };
+
   /**
    * Handles deleting a song from the history.
    * @param songUid - The unique identifier for the song to delete.
@@ -167,40 +215,103 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className={styles.historyPage}>
+    <div className="historyPage">
       {/* Header Section */}
-      <div className={styles.header}>
+      <div className="header">
         <h1>History</h1>
       </div>
 
       {/* Controls Section */}
-      <div className={styles.controls}>
-        <button onClick={handleClearHistory}>Clear history</button>
-        <button onClick={handleExportHistory}>Export history</button>
+      <div className="controls">
+        {/* Buttons for clearing, exporting, and importing history */}
+        <div className="buttonsContainer">
+          <button onClick={handleClearHistory}>Clear history</button>
+          <button onClick={handleExportHistory}>Export history</button>
+          <button onClick={() => {
+              Spicetify.PopupModal.display({
+                title: "Import History",
+                content: `
+                  <div id="import_history_modal">
+                    <div class="fileInputContainer">
+                      <label for="import_file_input" class="custom-file-upload">&#10514;</label>
+                      <input 
+                        id="import_file_input" 
+                        type="file" 
+                        name="file" 
+                        accept=".json"
+                        required 
+                      />
+                    </div>
+                    <button id="import_history_button">Import</button>
+                  </div>
+                `,
+              });
+
+              setTimeout(() => {
+                const importHistoryModalContainer = document.querySelector(".main-trackCreditsModal-container");
+                const importHistoryModal = document.getElementById("import_history_modal") as HTMLDivElement;
+                const fileInput = document.getElementById("import_file_input") as HTMLInputElement;
+                const importButton = document.getElementById("import_history_button") as HTMLButtonElement;
+
+                if (!importHistoryModalContainer || !importHistoryModal || !fileInput || !importButton) {
+                  Spicetify.showNotification("Modal not found");
+                  console.error("Modal elements not found, retrying...");
+                  return;
+                }
+
+                importHistoryModalContainer.classList.add("importHistoryModalContainer")
+                importHistoryModal.classList.add("importHistoryModal");
+                fileInput.classList.add("fileInput");
+                importButton.classList.add("importButton");
+                importButton.addEventListener("click", async () => {
+                  if (!fileInput.files || fileInput.files.length === 0) {
+                    Spicetify.showNotification("Please select a file");
+                    return;
+                  }
+                  const file = fileInput.files[0];
+                  await handleImportHistory(file);
+                });
+              }, 100);
+            }}
+          >
+            Import history
+          </button>
+        </div>
+
+        {/* Search input for filtering songs */}
+        <div className="searchContainer">
+          <input
+            type="text"
+            placeholder="Search history..."
+            value={searchQuery}
+            onChange={handleSearchChange}
+            className="searchInput"
+          />
+        </div>
       </div>
 
       {/* Song List */}
-      <div className={styles.songList}>
+      <div className="songList">
         {/* Header Row */}
-        <div className={styles.songListHeaderRow}>
-          <div className={styles.headerIndex}>#</div>
-          <div onClick={() => sortByColumn("name")} className={styles.headerTitle}>Title</div>
-          <div onClick={() => sortByColumn("album")} className={styles.headerAlbum}>Album</div>
-          <div onClick={() => sortByColumn("date")} className={styles.headerDate}>Date Added</div>
-          <div onClick={() => sortByColumn("duration")} className={styles.headerDuration}>Duration</div>
+        <div className="songListHeaderRow">
+          <div className="headerIndex">#</div>
+          <div onClick={() => sortByColumn("name")} className="headerTitle">Title</div>
+          <div onClick={() => sortByColumn("album")} className="headerAlbum">Album</div>
+          <div onClick={() => sortByColumn("date")} className="headerDate">Date Added</div>
+          <div onClick={() => sortByColumn("duration")} className="headerDuration">Duration</div>
           <div></div>
         </div>
 
-        {songs.length === 0 ? (
+        {filteredSongs.length === 0 ? (
           <p>No history available.</p>
         ) : (
-          songs.map((song, index) => (
-            <div key={song.uid || index} className={styles.songRow}>
+          filteredSongs.map((song, index) => (
+            <div key={song.uid || index} className="songRow">
               {/* Column 1: Index */}
-              <div className={styles.songIndex}>
-                <span className={styles.indexNumber}>{index + 1}</span>
+              <div className="songIndex">
+                <span className="indexNumber">{index + 1}</span>
                 <span
-                  className={styles.playPauseIcon}
+                  className="playPauseIcon"
                   onClick={() => handlePlayPauseSong(song.uri, song.uid)}
                 >
                   <svg
@@ -214,37 +325,37 @@ const App: React.FC = () => {
                 </span>
               </div>
               {/* Column 2: Image, Title and Artist */}
-              <div className={styles.songDetails}>
-                <div className={styles.songImageContainer}>
+              <div className="songDetails">
+                <div className="songImageContainer">
                   <img
                     src={song.images?.[0]?.url || "/default-image.png"}
                     alt={song.name}
-                    className={styles.songImage}
+                    className="songImage"
                   />
                 </div>
-                <div className={styles.songDetailsText}>
-                  <div className={styles.songName} title={song.name}>
+                <div className="songDetailsText">
+                  <div className="songName" title={song.name}>
                     {song.name.length > 50 ? `${song.name.substring(0, 50)}...` : song.name}
                   </div>
-                  <div className={styles.songArtist} onClick={() => Spicetify.Platform.History.push(`/artist/${song.artists?.[0].uri.split(":")[2]}`)}>
+                  <div className="songArtist" onClick={() => Spicetify.Platform.History.push(`/artist/${song.artists?.[0].uri.split(":")[2]}`)}>
                     {song.artists?.map((a: { name: string }) => a.name).join(", ")}
                   </div>
                 </div>
               </div>
               {/* Column 3: Album */}
-              <div className={styles.songAlbum} onClick={() => Spicetify.Platform.History.push(`/album/${song.album?.uri.split(":")[2]}`)}>
+              <div className="songAlbum" onClick={() => Spicetify.Platform.History.push(`/album/${song.album?.uri.split(":")[2]}`)}>
                 {song.album?.name.length > 50 ? `${song.album?.name.substring(0, 50)}...` : song.album?.name}
               </div>
               {/* Column 4: Date Added */}
-              <div className={styles.songDate}>
+              <div className="songDate">
                 {song.listenDate ? new Date(song.listenDate).toLocaleDateString() : ""}
               </div>
               {/* Column 5: Duration */}
-              <div className={styles.songDuration}>
+              <div className="songDuration">
                 {formatDuration(song.duration.milliseconds)}
               </div>
               {/* Column 6: Actions */}
-              <div className={styles.songActions}>
+              <div className="songActions">
                 <button onClick={() => handleDeleteSong(song.uid)}>Delete</button>
               </div>
             </div>
