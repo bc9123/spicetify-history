@@ -25,6 +25,10 @@ const App: React.FC = () => {
   const currentPlayingUid = useRef<string | null>(null);
   const currentPlayingUri = useRef<string | null>(null);
 
+  // Pagination states and constants
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
+
   /**
    * Fetches the history from the IndexedDB and sorts it based on the current sorting configuration.
    */
@@ -89,6 +93,15 @@ const App: React.FC = () => {
     };
   }, [fetchHistory]);
 
+  // Cleanup debounce timeout on unmount.
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Input change for search query.
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const query = event.target.value.toLowerCase();
@@ -142,6 +155,71 @@ const App: React.FC = () => {
     const seconds = ((ms % 60000) / 1000).toFixed(0);
     return `${minutes}:${parseInt(seconds) < 10 ? "0" : ""}${seconds}`;
   };
+
+  /**
+   * Formats a timestamp into a readable date string.
+   * If the song is not finalized, it shows relative time (e.g., "Just now", "X mins ago").
+   * @param timestamp - The timestamp to format.
+   * @param isFinalized - Whether the date is finalized or not.
+   * @returns Formatted date string.
+   */
+  const formatDate = (timestamp: number, isFinalized: boolean) => {
+    const date = new Date(timestamp);
+
+    if (!isFinalized) {
+      const now = new Date();
+      const diffMs = now.getTime() - timestamp;
+      const diffMins = Math.floor(diffMs / 60000);
+
+      if (diffMins < 1) return "Just now";
+      if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+      if (diffMins < 1440) {
+        const hours = Math.floor(diffMins / 60);
+        return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+      }
+
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      if (
+        date.getDate() === yesterday.getDate() &&
+        date.getMonth() === yesterday.getMonth() &&
+        date.getFullYear() === yesterday.getFullYear()
+      ) {
+        return "Yesterday";
+      }
+    }
+
+    const h = date.getHours().toString().padStart(2, '0');
+    const m = date.getMinutes().toString().padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = String(date.getFullYear()).slice(-2);
+    return `${h}:${m} / ${month} / ${day} / ${year}`;
+  };
+
+  /**
+   * Checks if the song is older than one day.
+   * @param timestamp - The timestamp to check.
+   * @returns True if older than one day, false otherwise.
+   */
+  const isOlderThanOneDay = (timestamp: number) => {
+    const now = new Date();
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setDate(now.getDate() - 1);
+
+    return timestamp < twoDaysAgo.getTime();
+  };
+
+  /**
+   * Formats the song date based on its listen date.
+   * If the song is older than a day, it finalizes the date.
+   * @param song - The song object.
+   * @returns Formatted date string.
+   */
+  const handleSongDate = (song: Song) => {
+    const isFinalized = isOlderThanOneDay(song.listenDate) || song.dateFinalized;
+    return formatDate(song.listenDate, isFinalized);
+  }
 
   /**
    * Handles clearing the history.
@@ -213,6 +291,11 @@ const App: React.FC = () => {
       ascending: prevSortConfig.key === key ? !prevSortConfig.ascending : true,
     }));
   };
+
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = currentPage * pageSize;
+  const paginatedSongs = filteredSongs.slice(startIndex, endIndex);
+  const totalPages = Math.ceil(filteredSongs.length / pageSize);
 
   return (
     <div className="historyPage">
@@ -302,14 +385,14 @@ const App: React.FC = () => {
           <div></div>
         </div>
 
-        {filteredSongs.length === 0 ? (
+        {paginatedSongs.length === 0 ? (
           <p>No history available.</p>
         ) : (
-          filteredSongs.map((song, index) => (
+          paginatedSongs.map((song, index) => (
             <div key={song.uid || index} className="songRow">
               {/* Column 1: Index */}
               <div className="songIndex">
-                <span className="indexNumber">{index + 1}</span>
+                <span className="indexNumber">{(pageSize*(currentPage-1)) + index + 1}</span>
                 <span
                   className="playPauseIcon"
                   onClick={() => handlePlayPauseSong(song.uri, song.uid)}
@@ -348,7 +431,7 @@ const App: React.FC = () => {
               </div>
               {/* Column 4: Date Added */}
               <div className="songDate">
-                {song.listenDate ? new Date(song.listenDate).toLocaleDateString() : ""}
+                {handleSongDate(song)}
               </div>
               {/* Column 5: Duration */}
               <div className="songDuration">
@@ -356,11 +439,20 @@ const App: React.FC = () => {
               </div>
               {/* Column 6: Actions */}
               <div className="songActions">
-                <button onClick={() => handleDeleteSong(song.uid)}>Delete</button>
+                <button onClick={() => handleDeleteSong(song.uid)}>X</button>
               </div>
             </div>
           ))
         )}
+        <div className="paginationContainer">
+          <button onClick={() => setCurrentPage((prevPage) => Math.max(prevPage - 1, 1))}>
+            &lt;
+          </button>
+          <span>Page {currentPage}</span>
+          <button onClick={() => setCurrentPage((prevPage) => prevPage + 1)} disabled={currentPage >= totalPages}>
+            &gt;
+          </button>
+        </div>
       </div>
     </div>
   );

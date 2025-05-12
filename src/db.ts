@@ -29,6 +29,7 @@ export interface Song {
         label: string;
     }[];
     listenDate: number;
+    dateFinalized: boolean;
 }
 
 /**

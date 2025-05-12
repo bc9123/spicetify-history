@@ -37,7 +37,8 @@ import { openDB, saveSongToDB } from "../db";
         artists: artists,
         metadata: song.metadata,
         images: images,
-        listenDate: new Date().getTime(),
+        listenDate: Date.now(),
+        dateFinalized: false,
       };
 
       try {
