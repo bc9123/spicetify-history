@@ -1,0 +1,10 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(to right, transparent, var(--text-bright-accent), transparent, var(--text-bright-accent), transparent);
+  background-size: 200% 200%;
+  padding: 40px 20px;
+  border-radius: 8px;
+  color: var(--text-base);
+}

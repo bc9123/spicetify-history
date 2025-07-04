@@ -1,5 +1,5 @@
 // Listens for song changes and stores track details in IndexedDB.
-import { Song } from "../db";
+import { Song } from "../types/spicetify-history"
 import { openDB, saveSongToDB } from "../db";
 
 (async () => {

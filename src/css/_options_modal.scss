@@ -1,0 +1,85 @@
+.optionsModalContainer {
+  background: var(--background-base) !important;
+  color: var(--text-base) !important;
+}
+
+.optionsModal {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 2rem;
+  background: var(--background-base);
+  border-radius: 8px;
+  color: var(--text-base);
+}
+
+.optionsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.optionItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.optionLabel {
+  font-weight: bold;
+}
+
+input[type="radio"] {
+  display: none;
+}
+
+.optionRadioLabel {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.3rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  transition: background-color 0.2s ease-in-out;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text-base);
+  border: 1px solid transparent;
+  margin-right: 0.5rem;
+}
+
+input[type="radio"]:checked + .optionRadioLabel {
+  background-color: var(--spice-button);
+  color: var(--spice-text);
+  border-color: var(--spice-button);
+}
+
+.navigationOptions,
+.displayedHistoryTypeOptions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.optionSelect {
+  padding: 0.5rem;
+  font-size: 1rem;
+  background: var(--background-highlight);
+  color: var(--text-base);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.confirmButton {
+  margin-top: 1rem;
+  align-self: center;
+  background: var(--spice-button);
+  color: var(--spice-text);
+  border: none;
+  border-radius: 1rem;
+  padding: 0.5rem 1.5rem;
+  font-weight: bold;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--spice-subtext);
+    color: var(--text-base);
+  }
+}

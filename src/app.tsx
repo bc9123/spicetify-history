@@ -1,459 +1,221 @@
-import React, { useRef, useEffect, useState, useCallback } from "react";
-import { openDB, getHistoryFromDB, deleteSongFromDB, clearHistoryFromDB, exportHistoryAsFile, Song, importHistoryAsFile } from "./db";
+import React, { useRef, useEffect, useState } from "react";
+import * as hooks from "./hooks/hooks";
+import * as components from "./components/Components";
+import * as modals from "./modals/modals";
+import { player } from "./utils/utils";
+import {
+  NavigationType,
+  DisplayedHistoryType,
+  SavedOptions,
+  Song
+} from "./types/spicetify-history";
 import "./css/app.scss";
 
-const App: React.FC = () => {
-  // IndexedDB instance
-  const [db, setDb] = useState<IDBDatabase | undefined>(undefined);
+// Key used to persist user options in localStorage
+const STORAGE_KEY = "historyAppOptions";
 
-  // Songs history state
-  const [songs, setSongs] = useState<Song[]>([]);
+// Default fallback options
+const defaultOptions: SavedOptions = {
+  pageSize: 50,
+  navigationType: "pagination",
+  displayedHistoryType: "song",
+};
 
-  // Debounce timeout for search
-  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Filtered songs state
-  const [filteredSongs, setFilteredSongs] = useState<Song[]>([]);
-
-  // Search query state
-  const [searchQuery, setSearchQuery] = useState<string>("");
-
-  // Sorting configuration state
-  const [sortConfig, setSortConfig] = useState<{ key: string; ascending: boolean }>({ key: "date", ascending: false });
-
-  // Currently playing song tracking
-  const currentPlayingUid = useRef<string | null>(null);
-  const currentPlayingUri = useRef<string | null>(null);
-
-  // Pagination states and constants
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 50;
-
-  /**
-   * Fetches the history from the IndexedDB and sorts it based on the current sorting configuration.
-   */
-  const fetchHistory = useCallback(async () => {
-    try {
-      const database = await openDB();
-      const songsFromDB = await getHistoryFromDB(database);
-      setDb(database);
-      const sortedSongs = sortSongs(songsFromDB, sortConfig);
-      setSongs(sortedSongs);
-      setFilteredSongs(sortedSongs);
-    } catch (error) {
-      console.error("Failed to fetch history:", error);
-    }
-  }, [sortConfig]);
-
-
-  /**
-   * Sorts the songs based on the provided sort configuration.
-   * @param songs The songs history to sort.
-   * @param sortConfig The sort configuration, containing the key to sort by and the sorting direction.
-   * @returns A sorted array of songs.
-   */
-  const sortSongs = (songs: Song[], sortConfig: { key: string; ascending: boolean }): Song[] => {
-    const sortedSongs = [...songs].sort((a, b) => {
-      if (sortConfig.key === "name") {
-        return a.name.localeCompare(b.name);
-      } else if (sortConfig.key === "album") {
-        return (a.album?.name || "").localeCompare(b.album?.name || "");
-      } else if (sortConfig.key === "date") {
-        return a.listenDate - b.listenDate;
-      } else if (sortConfig.key === "duration") {
-        return a.duration.milliseconds - b.duration.milliseconds;
-      }
-      return 0;
-    });
-    if (!sortConfig.ascending) sortedSongs.reverse();
-    return sortedSongs;
-  };
-
-  // Fetch history on component mount.
-  useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
-
-  // Event listeners for song change and play/pause.
-  useEffect(() => {
-    const handleSongChange = () => {
-      fetchHistory();
-      const currentItem = Spicetify.Player.data?.item;
-      if (currentItem && currentItem.type === "track") {
-        currentPlayingUri.current = currentItem.uri;
-        currentPlayingUid.current = currentItem.uid;
-      }
-    };
-
-    Spicetify.Player.addEventListener("onplaypause", handleSongChange);
-    Spicetify.Player.addEventListener("songchange", handleSongChange);
-    return () => {
-      Spicetify.Player.removeEventListener("songchange", handleSongChange);
-      Spicetify.Player.removeEventListener("onplaypause", handleSongChange);
-    };
-  }, [fetchHistory]);
-
-  // Cleanup debounce timeout on unmount.
-  useEffect(() => {
-    return () => {
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Input change for search query.
-  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const query = event.target.value.toLowerCase();
-    setSearchQuery(query);
-  
-    if (debounceTimeoutRef.current) {
-      clearTimeout(debounceTimeoutRef.current);
-    }
-  
-  debounceTimeoutRef.current = setTimeout(() => {
-    const filtered = songs.filter(
-      (song) =>
-        song.name.toLowerCase().includes(query) ||
-        song.album?.name?.toLowerCase().includes(query) ||
-        song.artists?.some((artist) => artist.name.toLowerCase().includes(query))
-    );
-    setFilteredSongs(filtered);
-  }, 300);
-  };
-
-  /**
-   * Handles play/pause logic for a song.
-   * If the song is paused, it resumes; if a different song is clicked, it plays from start.
-   * @param songUri - The URI of the song.
-   * @param songUid - The unique identifier for the song.
-   */
-  const handlePlayPauseSong = (songUri: string, songUid: string) => {
-    if (Spicetify && Spicetify.Player) {
-      if (songUri === currentPlayingUri.current) {
-        if (Spicetify.Player.isPlaying()) {
-          Spicetify.Player.pause();
-        } else {
-          Spicetify.Player.play();
-        }
-      } else {
-        Spicetify.Player.playUri(songUri).then(() => {
-          currentPlayingUri.current = songUri;
-          currentPlayingUid.current = songUid;
-        });
-      }
-    }
-  };
-
-  /**
-   * Formats a song duration (milliseconds) into a readable string (MM:SS).
-   * @param ms - Duration in milliseconds.
-   * @returns Formatted string.
-   */
-  const formatDuration = (ms: number) => {
-    const minutes = Math.floor(ms / 60000);
-    const seconds = ((ms % 60000) / 1000).toFixed(0);
-    return `${minutes}:${parseInt(seconds) < 10 ? "0" : ""}${seconds}`;
-  };
-
-  /**
-   * Formats a timestamp into a readable date string.
-   * If the song is not finalized, it shows relative time (e.g., "Just now", "X mins ago").
-   * @param timestamp - The timestamp to format.
-   * @param isFinalized - Whether the date is finalized or not.
-   * @returns Formatted date string.
-   */
-  const formatDate = (timestamp: number, isFinalized: boolean) => {
-    const date = new Date(timestamp);
-
-    if (!isFinalized) {
-      const now = new Date();
-      const diffMs = now.getTime() - timestamp;
-      const diffMins = Math.floor(diffMs / 60000);
-
-      if (diffMins < 1) return "Just now";
-      if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
-      if (diffMins < 1440) {
-        const hours = Math.floor(diffMins / 60);
-        return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-      }
-
-      const yesterday = new Date(now);
-      yesterday.setDate(now.getDate() - 1);
-      if (
-        date.getDate() === yesterday.getDate() &&
-        date.getMonth() === yesterday.getMonth() &&
-        date.getFullYear() === yesterday.getFullYear()
-      ) {
-        return "Yesterday";
-      }
-    }
-
-    const h = date.getHours().toString().padStart(2, '0');
-    const m = date.getMinutes().toString().padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const year = String(date.getFullYear()).slice(-2);
-    return `${h}:${m} / ${month} / ${day} / ${year}`;
-  };
-
-  /**
-   * Checks if the song is older than one day.
-   * @param timestamp - The timestamp to check.
-   * @returns True if older than one day, false otherwise.
-   */
-  const isOlderThanOneDay = (timestamp: number) => {
-    const now = new Date();
-    const twoDaysAgo = new Date();
-    twoDaysAgo.setDate(now.getDate() - 1);
-
-    return timestamp < twoDaysAgo.getTime();
-  };
-
-  /**
-   * Formats the song date based on its listen date.
-   * If the song is older than a day, it finalizes the date.
-   * @param song - The song object.
-   * @returns Formatted date string.
-   */
-  const handleSongDate = (song: Song) => {
-    const isFinalized = isOlderThanOneDay(song.listenDate) || song.dateFinalized;
-    return formatDate(song.listenDate, isFinalized);
+/**
+ * Loads saved user preferences from localStorage.
+ */
+const loadOptions = (): SavedOptions => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return JSON.parse(stored) as SavedOptions;
+  } catch {
+    // Fallback to default options on error
+    console.warn("Failed to load saved options, using defaults.");
   }
+  return defaultOptions;
+};
 
-  /**
-   * Handles clearing the history.
-   */
-  const handleClearHistory = async () => {
-    if (db) {
-      try {
-        await clearHistoryFromDB(db);
-        fetchHistory();
-      } catch (error) {
-        console.error("Failed to clear history:", error);
-      }
-    }
-  };
+/**
+ * Saves current user preferences to localStorage.
+ */
+const saveOptions = (opts: SavedOptions) => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(opts));
+};
 
-  /**
-   * Handles exporting the history.
-   */
-  const handleExportHistory = async () => {
-    if (db) {
-      try {
-        await exportHistoryAsFile(db);
-      } catch (error) {
-        console.error("Failed to export history:", error);
-      }
-    }
-  };
+const App: React.FC = () => {
+  // Load persisted display settings
+  const savedOptions = loadOptions();
 
-  /** 
-   * Handles importing the history.
-  */
-  const handleImportHistory = async (file: File) => {
-    if (db) {
-      try {
-        await importHistoryAsFile(db, file);
-        fetchHistory();
-        Spicetify.PopupModal.hide();
-      } catch (error) {
-        console.error("Failed to import history:", error);
-      }
-    } else {
-      Spicetify.showNotification("Database not ready");
-    }
-  };
+  // UI state
+  const [pageSize, setPageSize] = useState<number>(savedOptions.pageSize);
+  const [navigationType, setNavigationType] = useState<NavigationType>(savedOptions.navigationType);
+  const [displayedHistoryType, setDisplayedHistoryType] = useState<DisplayedHistoryType>(
+    savedOptions.displayedHistoryType
+  );
 
-  /**
-   * Handles deleting a song from the history.
-   * @param songUid - The unique identifier for the song to delete.
-   */
-  const handleDeleteSong = async (songUid: string) => {
-    if (db) {
-      try {
-        await deleteSongFromDB(db, songUid);
-        fetchHistory();
-      } catch (error) {
-        console.error("Failed to delete song:", error);
-      }
-    }
-  };
+  // Sorting hooks for both views
+  const {
+    songSortConfig,
+    songSortBy,
+    albumSortConfig,
+    albumSortBy
+  } = hooks.useSort<Song>("listenDate", false);
 
-  /**
-   * Sorts the songs based on the provided key.
-   * If the same key is clicked, it toggles the sorting direction.
-   * @param key - The key to sort by.
-   */
-  const sortByColumn = (key: string) => {
-    setSortConfig((prevSortConfig) => ({
-      key,
-      ascending: prevSortConfig.key === key ? !prevSortConfig.ascending : true,
-    }));
-  };
+  // Load song data and attach sort config
+  const {
+    songs,
+    fetchHistory,
+    handleClearHistory,
+    handleDeleteSong,
+    handleExportHistory,
+    handleImportHistory
+  } = hooks.useHistoryDB(
+    displayedHistoryType === "song" ? songSortConfig : albumSortConfig
+  );
 
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = currentPage * pageSize;
-  const paginatedSongs = filteredSongs.slice(startIndex, endIndex);
-  const totalPages = Math.ceil(filteredSongs.length / pageSize);
+  // Filtered songs by search
+  const { searchQuery, setSearchQuery, filteredSongs } = hooks.useDebouncedSearch(songs);
+
+  // Track current playing song
+  const { currentPlayingUid, currentPlayingUri } = hooks.usePlayerTracking(fetchHistory);
+
+  // Pagination logic
+  const {
+    currentPage,
+    setCurrentPage,
+    totalPages,
+    paginatedItems: paginatedSongs
+  } = hooks.usePagination(filteredSongs, pageSize);
+
+  // Infinite scroll logic
+  const { visibleCount, containerRef, isLoading } = hooks.useInfiniteScroll({
+    totalItems: filteredSongs.length,
+    pageSize,
+    enabled: navigationType === "infiniteScroll"
+  });
+
+  // Reset to first page when relevant changes occur
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, songSortConfig, pageSize, navigationType, displayedHistoryType]);
+
+  // Persist display settings
+  useEffect(() => {
+    saveOptions({
+      pageSize,
+      navigationType,
+      displayedHistoryType
+    });
+  }, [pageSize, navigationType, displayedHistoryType]);
+
+  // Choose slice logic based on scroll or pagination
+  const baseSongs =
+    navigationType === "pagination"
+      ? paginatedSongs
+      : filteredSongs.slice(0, visibleCount);
+
+  // Conditionally prepare song/album structure for render
+  const displayedSongs = hooks.useDisplayedSongs(
+    baseSongs,
+    visibleCount,
+    displayedHistoryType,
+    albumSortConfig
+  );
 
   return (
     <div className="historyPage">
-      {/* Header Section */}
+      {/* Page Header */}
       <div className="header">
         <h1>History</h1>
       </div>
 
-      {/* Controls Section */}
-      <div className="controls">
-        {/* Buttons for clearing, exporting, and importing history */}
-        <div className="buttonsContainer">
-          <button onClick={handleClearHistory}>Clear history</button>
-          <button onClick={handleExportHistory}>Export history</button>
-          <button onClick={() => {
-              Spicetify.PopupModal.display({
-                title: "Import History",
-                content: `
-                  <div id="import_history_modal">
-                    <div class="fileInputContainer">
-                      <label for="import_file_input" class="custom-file-upload">&#10514;</label>
-                      <input 
-                        id="import_file_input" 
-                        type="file" 
-                        name="file" 
-                        accept=".json"
-                        required 
-                      />
-                    </div>
-                    <button id="import_history_button">Import</button>
-                  </div>
-                `,
-              });
+      {/* User Controls */}
+      <components.Controls
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        handleClearHistory={handleClearHistory}
+        handleExportHistory={handleExportHistory}
+        handleImportHistory={handleImportHistory}
+        showImportHistoryModal={modals.showImportHistoryModal}
+        showOptionsModal={modals.showOptionsModal}
+        navigationType={navigationType}
+        pageSize={pageSize}
+        displayedHistoryType={displayedHistoryType}
+        setPageSize={setPageSize}
+        setNavigationType={setNavigationType}
+        setCurrentPage={setCurrentPage}
+        setDisplayedHistoryType={setDisplayedHistoryType}
+      />
 
-              setTimeout(() => {
-                const importHistoryModalContainer = document.querySelector(".main-trackCreditsModal-container");
-                const importHistoryModal = document.getElementById("import_history_modal") as HTMLDivElement;
-                const fileInput = document.getElementById("import_file_input") as HTMLInputElement;
-                const importButton = document.getElementById("import_history_button") as HTMLButtonElement;
+      {/* Main Song List */}
+      <div className="songList" ref={containerRef}>
+        {/* Column Headers */}
+        <components.HeaderRow
+          sortBy={
+            displayedHistoryType === "song"
+              ? ((key: keyof Song | "songCount") => {
+                  if (key !== "songCount") songSortBy(key);
+                })
+              : albumSortBy
+          }
+          displayedHistoryType={displayedHistoryType}
+        />
 
-                if (!importHistoryModalContainer || !importHistoryModal || !fileInput || !importButton) {
-                  Spicetify.showNotification("Modal not found");
-                  console.error("Modal elements not found, retrying...");
-                  return;
-                }
-
-                importHistoryModalContainer.classList.add("importHistoryModalContainer")
-                importHistoryModal.classList.add("importHistoryModal");
-                fileInput.classList.add("fileInput");
-                importButton.classList.add("importButton");
-                importButton.addEventListener("click", async () => {
-                  if (!fileInput.files || fileInput.files.length === 0) {
-                    Spicetify.showNotification("Please select a file");
-                    return;
-                  }
-                  const file = fileInput.files[0];
-                  await handleImportHistory(file);
-                });
-              }, 100);
-            }}
-          >
-            Import history
-          </button>
-        </div>
-
-        {/* Search input for filtering songs */}
-        <div className="searchContainer">
-          <input
-            type="text"
-            placeholder="Search history..."
-            value={searchQuery}
-            onChange={handleSearchChange}
-            className="searchInput"
-          />
-        </div>
-      </div>
-
-      {/* Song List */}
-      <div className="songList">
-        {/* Header Row */}
-        <div className="songListHeaderRow">
-          <div className="headerIndex">#</div>
-          <div onClick={() => sortByColumn("name")} className="headerTitle">Title</div>
-          <div onClick={() => sortByColumn("album")} className="headerAlbum">Album</div>
-          <div onClick={() => sortByColumn("date")} className="headerDate">Date Added</div>
-          <div onClick={() => sortByColumn("duration")} className="headerDuration">Duration</div>
-          <div></div>
-        </div>
-
-        {paginatedSongs.length === 0 ? (
-          <p>No history available.</p>
+        {/* Song or Album List */}
+        {displayedHistoryType === "song" ? (
+          (displayedSongs as Song[]).map((song, index) => (
+            <components.SongRow
+              key={song.uid || index}
+              song={song}
+              index={index}
+              pageSize={pageSize}
+              currentPage={currentPage}
+              currentPlayingUid={currentPlayingUid}
+              currentPlayingUri={currentPlayingUri}
+              onDelete={handleDeleteSong}
+              onPlayPause={(songUri, songUid) =>
+                player.handlePlayPauseSong({
+                  songUri,
+                  songUid,
+                  currentPlayingUri,
+                  currentPlayingUid
+                })
+              }
+            />
+          ))
         ) : (
-          paginatedSongs.map((song, index) => (
-            <div key={song.uid || index} className="songRow">
-              {/* Column 1: Index */}
-              <div className="songIndex">
-                <span className="indexNumber">{(pageSize*(currentPage-1)) + index + 1}</span>
-                <span
-                  className="playPauseIcon"
-                  onClick={() => handlePlayPauseSong(song.uri, song.uid)}
-                >
-                  <svg
-                    dangerouslySetInnerHTML={{
-                      __html:
-                        (song.uid === currentPlayingUid.current || song.uri === currentPlayingUri.current) && Spicetify.Player.isPlaying()
-                          ? Spicetify.SVGIcons["pause"]
-                          : Spicetify.SVGIcons["play"]
-                    }}
-                  />
-                </span>
-              </div>
-              {/* Column 2: Image, Title and Artist */}
-              <div className="songDetails">
-                <div className="songImageContainer">
-                  <img
-                    src={song.images?.[0]?.url || "/default-image.png"}
-                    alt={song.name}
-                    className="songImage"
-                  />
-                </div>
-                <div className="songDetailsText">
-                  <div className="songName" title={song.name}>
-                    {song.name.length > 50 ? `${song.name.substring(0, 50)}...` : song.name}
-                  </div>
-                  <div className="songArtist" onClick={() => Spicetify.Platform.History.push(`/artist/${song.artists?.[0].uri.split(":")[2]}`)}>
-                    {song.artists?.map((a: { name: string }) => a.name).join(", ")}
-                  </div>
-                </div>
-              </div>
-              {/* Column 3: Album */}
-              <div className="songAlbum" onClick={() => Spicetify.Platform.History.push(`/album/${song.album?.uri.split(":")[2]}`)}>
-                {song.album?.name.length > 50 ? `${song.album?.name.substring(0, 50)}...` : song.album?.name}
-              </div>
-              {/* Column 4: Date Added */}
-              <div className="songDate">
-                {handleSongDate(song)}
-              </div>
-              {/* Column 5: Duration */}
-              <div className="songDuration">
-                {formatDuration(song.duration.milliseconds)}
-              </div>
-              {/* Column 6: Actions */}
-              <div className="songActions">
-                <button onClick={() => handleDeleteSong(song.uid)}>X</button>
-              </div>
-            </div>
+          Object.entries(displayedSongs).map(([albumId, albumSongs]) => (
+            <components.AlbumRow
+              key={albumId}
+              songs={albumSongs}
+              pageSize={pageSize}
+              currentPage={currentPage}
+              currentPlayingUid={currentPlayingUid}
+              currentPlayingUri={currentPlayingUri}
+              onDelete={handleDeleteSong}
+              onPlayPause={(songUri, songUid) =>
+                player.handlePlayPauseSong({
+                  songUri,
+                  songUid,
+                  currentPlayingUri,
+                  currentPlayingUid
+                })
+              }
+            />
           ))
         )}
-        <div className="paginationContainer">
-          <button onClick={() => setCurrentPage((prevPage) => Math.max(prevPage - 1, 1))}>
-            &lt;
-          </button>
-          <span>Page {currentPage}</span>
-          <button onClick={() => setCurrentPage((prevPage) => prevPage + 1)} disabled={currentPage >= totalPages}>
-            &gt;
-          </button>
-        </div>
       </div>
+
+      {/* Pagination or Infinite Scroll Footer */}
+      <components.Footer
+        navigationType={navigationType}
+        filteredSongs={filteredSongs}
+        isLoading={isLoading}
+        visibleCount={visibleCount}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        totalPages={totalPages}
+      />
     </div>
   );
 };

@@ -1,0 +1,70 @@
+.controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 0.5rem;
+
+  .buttonsContainer {
+    display: flex;
+    gap: 1rem;
+
+    button {
+      outline: none;
+      background-color: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 1.2rem;
+      color: var(--text-base);
+
+      &:hover {
+        color: var(--text-bright-accent);
+      }
+    }
+  }
+
+  .searchAndOptions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+
+    .searchContainer {
+      display: flex;
+      align-items: center;
+
+      .searchInput {
+        padding: 8px;
+        font-size: 16px;
+        border: none;
+        background: var(--background-base);
+        color: var(--text-base);
+      }
+    }
+
+  .optionsContainer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    .optionsButton {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      cursor: pointer;
+      padding: 0.25rem;
+
+      .optionsIcon {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 20px;
+        height: 20px;
+        transform: translate(-50%, -50%);
+        fill: var(--text-base);
+      }
+    }
+  }
+  }
+}

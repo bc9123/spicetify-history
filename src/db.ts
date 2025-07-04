@@ -8,29 +8,7 @@
  * An object store named "history" is created with a keyPath of "uid", which is assumed to be a unique identifier for each song.
  */
 
-export interface Song {
-    uid: string;
-    uri: string;
-    name: string;
-    duration: {
-        milliseconds: number;
-    };
-    album: {
-        name: string;
-        uri: string;
-    };
-    artists: {
-        uri: string;
-        name: string;
-    }[];
-    metadata: Record<string, any>;
-    images: {
-        url: string;
-        label: string;
-    }[];
-    listenDate: number;
-    dateFinalized: boolean;
-}
+import { Song } from "./types/spicetify-history";
 
 /**
  * Opens the IndexedDB database.
@@ -94,8 +72,12 @@ export const saveSongToDB = (db: IDBDatabase, song: Song): Promise<void> => {
       const foundSong = (event.target as IDBRequest).result as Song | undefined;
       if (foundSong) {
         console.log(`Song found in index for uri ${song.uri}:`, foundSong);
-        foundSong.listenDate = song.listenDate;
-        const updateRequest = objectStore.put(foundSong);
+        const updatedSong = {
+          ...foundSong,
+          listenDate: Date.now(),
+        };
+
+        const updateRequest = objectStore.put(updatedSong);
 
         updateRequest.onerror = (event: Event) => {
           const errorMessage = (event.target as IDBRequest).error?.message || "Unknown error";
@@ -104,7 +86,7 @@ export const saveSongToDB = (db: IDBDatabase, song: Song): Promise<void> => {
         };
 
         updateRequest.onsuccess = () => {
-          console.log("Song listenDate updated:", foundSong.name);
+          console.log("Song listenDate updated:", updatedSong.name);
           resolve();
         };
       } else {

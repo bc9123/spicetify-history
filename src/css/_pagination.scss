@@ -1,0 +1,24 @@
+.paginationContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 20px;
+  justify-self: center;
+  border: 1px solid var(--text-bright-accent);
+
+  button {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    color: var(--text-base);
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+
+    &:hover {
+      background: var(--text-bright-accent);
+      color: var(--background-base);
+    }
+  }
+}
